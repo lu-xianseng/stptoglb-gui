@@ -1,8 +1,7 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # Author: 1173381395@qq.com
-
-
+import time
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox, scrolledtext
 import subprocess
@@ -10,6 +9,8 @@ import threading
 import os
 import re
 import sys
+
+VERSION = "V0.0.2"
 
 
 def resource_path(relative_path):
@@ -31,7 +32,7 @@ class App:
     def __init__(self, root):
         self.root = root
         self.root.iconbitmap(resource_path(r"res/logo.ico"))
-        self.root.title("STEP 转 GLB")
+        self.root.title(f"STP to GLB    {VERSION}")
         self.root.geometry("600x450")
         self.center_window(self.root, 600, 450)
 
@@ -49,6 +50,7 @@ class App:
             "filter_names_file_exclude": tk.StringVar(value=""),
             "tessellation_timeout": tk.IntVar(value=30),
         }
+        self.open_dir = tk.BooleanVar(value=True)
 
         self.input_path = tk.StringVar()
         self.output_path = tk.StringVar()
@@ -61,30 +63,53 @@ class App:
         self.root.config(menu=menubar)
 
         settings_menu = tk.Menu(menubar, tearoff=0)
-        settings_menu.add_command(label="参数设置", command=self.open_settings)
-        menubar.add_cascade(label="菜单", menu=settings_menu)
+        settings_menu.add_command(label="⚙️ 参数设置", command=self.open_settings)
+        settings_menu.add_command(label="❌ 退出", command=self.close)
+        menubar.add_cascade(label="🚪 菜单", menu=settings_menu)
+        menubar.add_command(label="ℹ️ 关于", command=self.show_about)
 
-        about_menu = tk.Menu(menubar, tearoff=0)
-        about_menu.add_command(label="关于", command=self.show_about)
-        menubar.add_cascade(label="关于", menu=about_menu)
+    def create_placeholder_entry(self, parent, textvariable, placeholder_text, **kwargs):
+        """创建带 placeholder 的 Entry"""
+        entry = ttk.Entry(parent, textvariable=textvariable, **kwargs)
+
+        def on_focus_in(event):
+            if textvariable.get() == placeholder_text:
+                textvariable.set("")
+                entry.config(foreground="black")
+
+        def on_focus_out(event):
+            if textvariable.get() == "":
+                textvariable.set(placeholder_text)
+                entry.config(foreground="gray")
+
+        # 初始化状态
+        if not textvariable.get():
+            textvariable.set(placeholder_text)
+            entry.config(foreground="gray")
+
+        entry.bind("<FocusIn>", on_focus_in)
+        entry.bind("<FocusOut>", on_focus_out)
+        return entry
 
     def create_widgets(self):
         frame = ttk.Frame(self.root, padding="10")
         frame.grid(row=0, column=0, sticky=(tk.W, tk.E, tk.N, tk.S))
 
         # 输入路径
-        ttk.Label(frame, text="文件路径:").grid(row=0, column=0, sticky=tk.W, pady=5)
+        ttk.Label(frame, text="选择stp文件:").grid(row=0, column=0, sticky=tk.W, pady=5)
         ttk.Entry(frame, textvariable=self.input_path, width=60).grid(row=0, column=1, padx=5, pady=5)
         ttk.Button(frame, text="浏览...", command=self.browse_input).grid(row=0, column=2, padx=5)
 
         # 输出路径
-        ttk.Label(frame, text="保存路径:").grid(row=1, column=0, sticky=tk.W, pady=5)
-        ttk.Entry(frame, textvariable=self.output_path, width=60).grid(row=1, column=1, padx=5, pady=5)
-        ttk.Button(frame, text="浏览...", command=self.browse_output).grid(row=1, column=2, padx=5)
+        # ttk.Label(frame, text="输出路径:").grid(row=1, column=0, sticky=tk.W, pady=5)
+        # ttk.Entry(frame, textvariable=self.output_path, width=60).grid(row=1, column=1, padx=5, pady=5)
+        # ttk.Button(frame, text="浏览...", command=self.browse_output).grid(row=1, column=2, padx=5)
 
         # 转换按钮
+        ttk.Checkbutton(frame, text="完成后打开输出目录", variable=self.open_dir, onvalue=True, offvalue=False).grid(
+            row=2, column=0, sticky=tk.W, pady=5, columnspan=3)
         self.convert_button = ttk.Button(frame, text="开始转换", command=self.start_conversion)
-        self.convert_button.grid(row=2, column=1, pady=10)
+        self.convert_button.grid(row=3, column=1, pady=10)
 
         # 日志显示
         # ttk.Label(frame, text="日志:").grid(row=3, column=0, sticky=tk.W, pady=5)
@@ -112,6 +137,10 @@ class App:
         window.geometry(f'{width}x{height}+{x}+{y}')
         window.update_idletasks()
         window.resizable(False, False)
+
+    def close(self):
+        self.log("Bye ~")
+        self.root.quit()
 
     def open_settings(self):
         settings_win = tk.Toplevel(self.root)
@@ -235,8 +264,7 @@ class App:
             self.params[var_name].set(path)
 
     def show_about(self):
-        messagebox.showinfo("关于", "STEP 格式转换工具\n版本: 0.0.1\n作者: lorien\nEmail: 1173381395@qq.com\n"
-                                    "Github: https://github.com/lu-xianseng/stptoglb-gui")
+        messagebox.showinfo("关于", f"STEP 格式转换工具\n版本: {VERSION}\n作者: lorien\nEmail: 1173381395@qq.com\n")
 
     def log(self, msg):
         self.log_text.config(state='normal')
@@ -247,8 +275,8 @@ class App:
 
     def start_conversion(self):
         inp = self.input_path.get().strip()
-        out = self.output_path.get().strip()
-        if contains_chinese(inp) or contains_chinese(out):
+        out = os.path.dirname(inp)
+        if contains_chinese(inp):
             messagebox.showerror("错误", "输入输出路径不能包含中文字符！")
             return
         if not inp or not os.path.isfile(inp):
@@ -268,7 +296,7 @@ class App:
         thread.start()
 
     def run_converter(self, input_file, output_path):
-        output_file = f"{output_path}/output.glb"
+        output_file = f"{output_path}/output-{time.strftime("%Y%m%d%H%M%S")}.glb"
         try:
             exe_path = resource_path("res/stptoglb.exe")
             cmd = [exe_path]
@@ -316,7 +344,7 @@ class App:
                 self.log("✅ 转换完成！")
                 # 自动打开输出目录（Windows）
                 try:
-                    if os.path.isdir(output_path):
+                    if os.path.isdir(output_path) and self.open_dir.get():
                         os.startfile(os.path.normpath(output_path))
                 except Exception as e:
                     self.log(f"⚠️ 无法打开输出目录: {e}")

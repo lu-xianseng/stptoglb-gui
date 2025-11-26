@@ -1,0 +1,1 @@
+nuitka --standalone --onefile --windows-icon-from-ico=res\logo.ico --windows-console-mode=disable --include-data-dir=res=res --include-data-file=res/stptoglb.exe=res/stptoglb.exe --enable-plugin=tk-inter stp-to-glb.py
